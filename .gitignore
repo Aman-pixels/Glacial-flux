@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Generated media (large binary files, don't track)
+backend/temp/
+backend/output/
+
+# Environment secrets
+backend/.env
+
+# Build output
+frontend/dist/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log

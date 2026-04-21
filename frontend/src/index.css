@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=DM+Serif+Display:ital@0;1&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* ── Fonts ── */
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'DM Serif Display', Georgia, serif;
+
+  /* ── Pastel Colour System ── */
+  --color-bg:        #F1F7F7;   /* near-white mint — page background   */
+  --color-surface:   #FFFFFF;   /* pure white cards                      */
+  --color-surface-2: #F7FAFA;   /* very subtle off-white                 */
+
+  --color-sage:      #D5E6E5;   /* soft sage — sidebar, panels           */
+  --color-teal:      #BDD1D6;   /* muted teal — borders, dividers        */
+  --color-teal-deep: #5D6B6B;   /* dark slate — headings, active states  */
+
+  --color-rose:      #F7CBCA;   /* pastel pink — primary CTA             */
+  --color-rose-deep: #C4918F;   /* deeper rose — hover states            */
+  --color-greige:    #DDD3C8;   /* warm greige — secondary elements      */
+
+  --color-ink:       #3A4A4A;   /* main body text                        */
+  --color-muted:     #7A9090;   /* muted labels                          */
+  --color-subtle:    #A8BCBC;   /* ghost text / placeholders             */
+}
+
+/* ── Base ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-teal); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-teal-deep); }
+
+/* ── Selection ── */
+::selection { background: var(--color-rose); color: var(--color-teal-deep); }
+
+/* ── Input range thumb ── */
+input[type=range] { accent-color: var(--color-teal-deep); }
