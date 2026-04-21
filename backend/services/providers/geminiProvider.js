@@ -7,7 +7,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
 
 const model = genAI.getGenerativeModel({
-  model: 'gemini-2.0-flash',
+  model: 'gemma-4-31b-it',
   generationConfig: { responseMimeType: 'application/json' },
 });
 
@@ -34,7 +34,8 @@ Return ONLY this JSON structure, no markdown:
   "segments": [{ "start": 0.0, "end": 5.2, "text": "words here" }]
 }`;
 
-    const result = await model.generateContent([
+    const transcribeModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const result = await transcribeModel.generateContent([
       { fileData: { fileUri: file.uri, mimeType: 'audio/mpeg' } },
       { text: prompt },
     ]);
@@ -56,16 +57,18 @@ async function detectViralMoments(transcriptionData) {
 Return ONLY this JSON, no markdown:
 {"clips":[{"title":"catchy title","description":"why it will go viral","start_time":0.0,"end_time":30.0,"virality_score":95}]}` },
     { text: `Transcript:\n${promptData}` },
-  ]);
+  ], { model: 'gemma-4-31b-it' });
 
-  const parsed = JSON.parse(result.response.text());
+  const text = result.response.text();
+  const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(cleanJson);
   return parsed.clips || [];
 }
 
 async function generateClipSubtitles(audioFilePath) {
   const file = await uploadAudio(audioFilePath);
   try {
-    const srtModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const srtModel = genAI.getGenerativeModel({ model: 'gemma-4-31b-it' });
     const result = await srtModel.generateContent([
       { fileData: { fileUri: file.uri, mimeType: 'audio/mpeg' } },
       { text: `Transcribe this audio as a valid SRT subtitle file. Max 6 words per line.
@@ -77,4 +80,4 @@ Return ONLY raw SRT content, no markdown, no explanation.` },
   }
 }
 
-module.exports = { name: 'Gemini', transcribeAudio, detectViralMoments, generateClipSubtitles };
+module.exports = { name: 'Gemma 4', transcribeAudio, detectViralMoments, generateClipSubtitles };

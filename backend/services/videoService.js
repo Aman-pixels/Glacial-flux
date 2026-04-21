@@ -41,8 +41,13 @@ async function downloadVideo(url, outputDir) {
 
     const proc = spawn(ytDlpBin, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false, // ← KEY: no shell, args array is passed directly to OS
+      shell: false, 
     });
+
+    const timeout = setTimeout(() => {
+      proc.kill();
+      reject(new Error('yt-dlp download timed out (exceeded 10 minutes)'));
+    }, 10 * 60 * 1000);
 
     let stderr = '';
     proc.stdout.on('data', (d) => console.log('[yt-dlp]', d.toString().trim()));
@@ -53,10 +58,12 @@ async function downloadVideo(url, outputDir) {
     });
 
     proc.on('error', (err) => {
+      clearTimeout(timeout);
       reject(new Error(`Failed to spawn yt-dlp: ${err.message}`));
     });
 
     proc.on('close', (code) => {
+      clearTimeout(timeout);
       if (code !== 0) {
         return reject(new Error(`yt-dlp exited with code ${code}. ${stderr}`));
       }
@@ -93,7 +100,43 @@ async function extractAudio(videoPath, outputDir) {
   });
 }
 
+/**
+ * Fetches metadata (title, author, thumbnail) from YouTube using yt-dlp.
+ */
+async function getVideoMetadata(url) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      url,
+      '--dump-json',
+      '--no-check-certificates',
+      '--extractor-args', 'youtube:player_client=android'
+    ];
+
+    const proc = spawn(ytDlpBin, args, { shell: false });
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (d) => stdout += d.toString());
+    proc.stderr.on('data', (d) => stderr += d.toString());
+
+    proc.on('close', (code) => {
+      if (code !== 0) return reject(new Error(`yt-dlp metadata failed: ${stderr}`));
+      try {
+        const json = JSON.parse(stdout);
+        resolve({
+          title: json.title,
+          author: json.uploader,
+          thumbnail: json.thumbnail
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
 module.exports = {
   downloadVideo,
   extractAudio,
+  getVideoMetadata,
 };

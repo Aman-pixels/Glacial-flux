@@ -2,9 +2,30 @@ const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
 const Project = require('../models/Project');
-const { downloadVideo, extractAudio } = require('./videoService');
+const { downloadVideo, extractAudio, getVideoMetadata } = require('./videoService');
 const { transcribeAudio, detectViralMoments, generateClipSubtitles } = require('./aiService');
-const { extractAudioSegment, processVerticalClipWithSubtitles, generateThumbnail } = require('../utils/ffmpeg');
+const { extractAudioSegment, processVerticalClip, generateThumbnail } = require('../utils/ffmpeg');
+
+// ─── CONCURRENCY CONTROL ─────────────────────────────────────────────────────
+const MAX_CONCURRENT_JOBS = 2; // Limit FFmpeg/AI load
+let activeJobs = 0;
+const jobQueue = [];
+
+async function nextInQueue() {
+  if (activeJobs < MAX_CONCURRENT_JOBS && jobQueue.length > 0) {
+    const { jobId, url, socket, templateId, resolve, reject } = jobQueue.shift();
+    activeJobs++;
+    try {
+      const result = await runJob(jobId, url, socket, templateId);
+      resolve(result);
+    } catch (err) {
+      reject(err);
+    } finally {
+      activeJobs--;
+      nextInQueue();
+    }
+  }
+}
 
 async function createJob(url, socket, templateId) {
   const jobId = uuidv4();
@@ -17,29 +38,56 @@ async function createJob(url, socket, templateId) {
     status: 'queued'
   });
   
-  // Start async processing without blocking
-  processJob(jobId, url, socket, templateId).catch(async (err) => {
-    console.error(`Job ${jobId} failed:`, err);
+  // Submit to the managed queue
+  return new Promise((resolve, reject) => {
+    jobQueue.push({ jobId, url, socket, templateId, resolve, reject });
+    // Emit progress to user immediately
+    console.log(`[Job ${jobId}] Added to queue. Position: ${jobQueue.length}`);
     if (socket) {
-      socket.emit('job-error', { jobId, error: err.message });
+      socket.emit('job-progress', { jobId, stage: 'queued', percent: 0, message: `Job queued. Position in line: ${jobQueue.length}` });
     }
-    await Project.findOneAndUpdate({ jobId }, { status: 'failed', error: err.message });
+    nextInQueue();
   });
-
-  return jobId;
 }
 
-// Function to log locally and emit safely
-function emitLog(socket, jobId, stage, percent, message) {
+// Function to log locally, emit safely, AND persist to DB
+async function emitLog(socket, jobId, stage, percent, message) {
   console.log(`[Job ${jobId}][${stage}] ${percent}% - ${message}`);
+  
+  // Progress event to current UI
   if (socket) {
     socket.emit('job-progress', { jobId, stage, percent, message });
   }
+
+  // Persist log entry to MongoDB
+  try {
+    await Project.findOneAndUpdate(
+      { jobId },
+      { 
+        $push: { logs: { stage, percent, message } },
+        // Update top-level percentage for easy dashboard polling if needed
+        $set: { updatedAt: new Date() } 
+      }
+    );
+  } catch (err) {
+    console.error(`Failed to persist log for ${jobId}:`, err);
+  }
 }
 
-async function processJob(jobId, url, socket, templateId) {
+async function runJob(jobId, url, socket, templateId) {
   await Project.findOneAndUpdate({ jobId }, { status: 'processing' });
-  emitLog(socket, jobId, 'init', 0, 'Starting Agent processing phase...');
+  await emitLog(socket, jobId, 'init', 0, 'Starting Agent processing phase...');
+
+  try {
+    // 1. Fetch metadata early to populate UI
+    await emitLog(socket, jobId, 'metadata', 5, 'Fetching video metadata...');
+    const metadata = await getVideoMetadata(url);
+    await Project.findOneAndUpdate({ jobId }, {
+      videoTitle: metadata.title,
+      videoAuthor: metadata.author,
+      videoThumbnail: metadata.thumbnail
+    });
+    await emitLog(socket, jobId, 'metadata', 8, `Metadata locked: "${metadata.title}"`);
 
   const tempDir = path.join(__dirname, '..', 'temp');
   const outputDir = path.join(__dirname, '..', 'output');
@@ -50,7 +98,6 @@ async function processJob(jobId, url, socket, templateId) {
   let mainAudioPath = null;
   const tempFilesToClean = [];
 
-  try {
     emitLog(socket, jobId, 'download', 10, 'Downloading highest quality video & audio from YouTube...');
     mainVideoPath = await downloadVideo(url, tempDir);
     tempFilesToClean.push(mainVideoPath);
@@ -65,7 +112,7 @@ async function processJob(jobId, url, socket, templateId) {
       throw new Error('Transcription failed.');
     }
     
-    emitLog(socket, jobId, 'analyze', 45, 'Agent analyzing transcript for viral hooks and high retention moments (Gemini 2.0 Flash)...');
+    emitLog(socket, jobId, 'analyze', 45, 'Agent analyzing transcript for viral hooks (Gemma 4 31B)...');
     const viralMoments = await detectViralMoments(transcriptionData);
     
     // We only process up to 3 for time/resource safety
@@ -93,12 +140,12 @@ async function processJob(jobId, url, socket, templateId) {
       emitLog(socket, jobId, 'render', Math.floor(basePercent), `Clip ${i+1}/${clipsToProcess}: Extracting slice audio...`);
       await extractAudioSegment(mainVideoPath, start, duration, clipAudioPath);
       
-      emitLog(socket, jobId, 'render', Math.floor(basePercent + 2), `Clip ${i+1}/${clipsToProcess}: Generating perfect localized subtitle track...`);
-      const srtContent = await generateClipSubtitles(clipAudioPath);
-      fs.writeFileSync(srtPath, srtContent);
+      // emitLog(socket, jobId, 'render', Math.floor(basePercent + 2), `Clip ${i+1}/${clipsToProcess}: Generating perfect localized subtitle track...`);
+      // const srtContent = await generateClipSubtitles(clipAudioPath);
+      // fs.writeFileSync(srtPath, srtContent);
       
-      emitLog(socket, jobId, 'render', Math.floor(basePercent + 5), `Clip ${i+1}/${clipsToProcess}: Rendering vertical layout & burning subtitles via FFmpeg...`);
-      await processVerticalClipWithSubtitles(mainVideoPath, start, duration, srtPath, outputVideoPath, templateId);
+      emitLog(socket, jobId, 'render', Math.floor(basePercent + 5), `Clip ${i+1}/${clipsToProcess}: Rendering vertical layout via FFmpeg...`);
+      await processVerticalClip(mainVideoPath, start, duration, outputVideoPath);
       
       emitLog(socket, jobId, 'render', Math.floor(basePercent + 12), `Clip ${i+1}/${clipsToProcess}: Generating engaging thumbnail...`);
       await generateThumbnail(outputVideoPath, thumbnailPath);
@@ -120,7 +167,20 @@ async function processJob(jobId, url, socket, templateId) {
     }
 
   } catch (error) {
-    throw error; // Let the top level catch log and emit
+    console.error(`[Job ${jobId}] Final Failure:`, error);
+    
+    // Improved error classification
+    let userMsg = error.message;
+    if (userMsg.includes('yt-dlp')) userMsg = 'YouTube download blocked or video unavailable.';
+    if (userMsg.includes('FFmpeg')) userMsg = 'Video processing error. The video might be corrupted.';
+    if (userMsg.includes('AI providers exhausted')) userMsg = 'Internal AI capacity reached. Try again in a few minutes.';
+
+    await Project.findOneAndUpdate({ jobId }, { status: 'failed', error: userMsg });
+    
+    if (socket) {
+      socket.emit('job-error', { jobId, error: userMsg });
+    }
+    throw error;
   } finally {
     // Cleanup temporary files
     for (const file of tempFilesToClean) {

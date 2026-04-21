@@ -97,6 +97,48 @@ async function processVerticalClipWithSubtitles(videoPath, startTime, duration, 
   });
 }
 
+async function processVerticalClip(videoPath, startTime, duration, destPath) {
+  return new Promise((resolve, reject) => {
+    // Just the crop filter, no subtitles
+    const filterComplex = 'crop=ih*(9/16):ih';
+
+    const args = [
+      '-ss', String(startTime),
+      '-i', videoPath,
+      '-t', String(duration),
+      '-vf', filterComplex,
+      '-c:v', 'libx264',
+      '-preset', 'fast',
+      '-crf', '23',
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-y',
+      destPath,
+    ];
+
+    console.log('[FFmpeg spawn] Args (No Subtitles):', args.join(' '));
+
+    const proc = spawn(ffmpegStatic, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+    });
+
+    let stderr = '';
+    proc.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
+
+    proc.on('error', (err) => reject(new Error(`Failed to spawn FFmpeg: ${err.message}`)));
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve(destPath);
+      } else {
+        reject(new Error(`FFmpeg exited with code ${code}.\n${stderr.slice(-800)}`));
+      }
+    });
+  });
+}
+
 async function generateThumbnail(videoPath, outputThumbPath) {
   return new Promise((resolve, reject) => {
     const parentDir = path.dirname(outputThumbPath);
@@ -117,5 +159,6 @@ async function generateThumbnail(videoPath, outputThumbPath) {
 module.exports = {
   extractAudioSegment,
   processVerticalClipWithSubtitles,
+  processVerticalClip,
   generateThumbnail,
 };

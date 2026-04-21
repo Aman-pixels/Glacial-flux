@@ -12,10 +12,10 @@ import { io } from 'socket.io-client';
 
 const socket = io();
 
-// ─── PERSISTENCE ─────────────────────────────────────────────────────────────
-const PROJECTS_KEY = 'glacialflux_projects';
-const loadProjects = () => { try { return JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]'); } catch { return []; } };
-const saveProjects = (p) => localStorage.setItem(PROJECTS_KEY, JSON.stringify(p));
+// ─── PERSISTENCE (Disabled LocalStorage, now using MongoDB) ──────────────────
+// const PROJECTS_KEY = 'glacialflux_projects';
+// const loadProjects = () => { try { return JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]'); } catch { return []; } };
+// const saveProjects = (p) => localStorage.setItem(PROJECTS_KEY, JSON.stringify(p));
 
 // ─── DESIGN TOKENS (matching new palette) ────────────────────────────────────
 const T = {
@@ -248,15 +248,15 @@ const HomeView = ({ onGenerate, processing, logs, results, jobId, progressPercen
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {[
-                { icon: DownloadCloud, label: 'Ingest',   color: '#D5E6E5', desc: 'Drop a link or upload raw files. Our engine downloads everything at max resolution, extracting every key moment faithfully.' },
-                { icon: Cpu,          label: 'Analyze',   color: '#F7CBCA', desc: 'AI identifies high-engagement moments, analysing the topics, pacing, and captions most likely to go viral.' },
-                { icon: Sparkles,     label: 'Polish',    color: '#DDD3C8', desc: 'Dynamic options, transitions, and layout rendering commercially deploys your masterpiece with one click.' },
+                { icon: DownloadCloud, label: 'Ingest',   color: '#D5E6E5', desc: 'Drop a link. Our engine downloads at max resolution, ensuring every key moment is captured faithfully.' },
+                { icon: Cpu,          label: 'Analyze',   color: '#F7CBCA', desc: 'Gemma 4 AI identifies high-engagement moments, analysing topics and pacing for maximum virality.' },
+                { icon: Sparkles,     label: 'Polish',    color: '#DDD3C8', desc: 'Smart vertical cropping and rendering deploys your masterpiece with one click.' },
               ].map(({ icon: Icon, label, color, desc }) => (
-                <Card key={label} className="p-7">
+                <Card key={label} className="p-7 transition-all hover:translate-y-[-4px]">
                   <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-5 shadow-sm" style={{ background: color }}>
                     <Icon className="w-5 h-5 text-[#5D6B6B]" />
                   </div>
-                  <h3 className="font-semibold text-[#3A4A4A] mb-2">{label}</h3>
+                  <h3 className="font-semibold text-[#3A4A4A] mb-2 text-sm">{label}</h3>
                   <p className="text-xs text-[#7A9090] leading-relaxed">{desc}</p>
                 </Card>
               ))}
@@ -366,8 +366,8 @@ const ProjectsView = ({ projects, onDownload, onOpenEditor, loading, onRefresh }
     .sort((a, b) => sort === 'newest' ? (b.createdAt || 0) - (a.createdAt || 0) : (b.virality_score || 0) - (a.virality_score || 0));
 
   const handleDelete = (clip) => {
-    // For now deletions only local, but eventually add DELETE /api/projects/:id
-    alert("Full DB deletion feature coming soon!");
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    onDelete(clip.jobId);
   };
 
   return (
@@ -487,9 +487,8 @@ const TemplatesView = ({ onSelectTemplate, activeTemplate }) => (
 );
 
 // ─── EDITOR VIEW ─────────────────────────────────────────────────────────────
-const EditorView = ({ editClip, onDownload }) => {
-  const [projects] = useState(loadProjects);
-  const [selected, setSelected] = useState(editClip || projects[0] || null);
+const EditorView = ({ editClip, dbProjects, onDownload }) => {
+  const [selected, setSelected] = useState(editClip || dbProjects[0] || null);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(100);
   const [volume, setVolume] = useState(80);
@@ -525,10 +524,10 @@ const EditorView = ({ editClip, onDownload }) => {
           <p className="text-[10px] font-bold text-[#A8BCBC] uppercase tracking-wider mb-3">Generated Clips<br/>
             <span className="text-[#C4918F] uppercase">Editorial Mode</span></p>
           <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
-            {projects.map((clip, i) => (
+            {dbProjects.map((clip, i) => (
               <button key={i} onClick={() => setSelected(clip)}
                 className={`w-full flex items-center space-x-3 p-2.5 rounded-2xl transition-all text-left
-                  ${selected?.videoUrl === clip.videoUrl
+                  ${selected?.jobId === clip.jobId
                     ? 'bg-[#F7CBCA]/20 border border-[#F7CBCA]/60'
                     : 'hover:bg-[#F7FAFA] border border-transparent'}`}>
                 <div className="w-9 h-12 bg-[#F1F7F7] rounded-xl flex-shrink-0 overflow-hidden border border-[#D5E6E5]/60">
@@ -571,69 +570,42 @@ const EditorView = ({ editClip, onDownload }) => {
 
         {/* ── Properties ── */}
         <Card className="p-5 space-y-5">
-          <div>
-            <p className="text-[10px] font-bold text-[#A8BCBC] uppercase tracking-widest mb-3">Properties</p>
+          <div className="space-y-4">
+            <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-start space-x-3 mb-2">
+              <Info className="w-3.5 h-3.5 text-emerald-500 mt-0.5" />
+              <p className="text-[10px] text-emerald-700 leading-relaxed font-medium">
+                Captions are currently disabled for maximum clarity. Standard 9:16 vertical cropping is active.
+              </p>
+            </div>
 
-            {/* Caption style */}
-            <div className="mb-4">
-              <div className="flex items-center text-xs font-semibold text-[#5D6B6B] mb-2">
-                <Sparkles className="w-3.5 h-3.5 mr-1.5 text-[#C4918F]" /> Caption Style
+            <div className="border-t border-[#F1F7F7] pt-4 space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-[#A8BCBC] uppercase tracking-widest block mb-1.5">Short Title</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-[#F7FAFA] border border-[#D5E6E5] rounded-xl text-sm text-[#3A4A4A] outline-none focus:border-[#BDD1D6] transition-all" />
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {captionStyles.map(s => (
-                  <button key={s} onClick={() => setCaptionStyle(s)}
-                    className={`py-2 rounded-xl text-[11px] font-semibold transition-all
-                      ${captionStyle === s
-                        ? 'bg-[#C4918F] text-white shadow-[0_2px_8px_rgba(196,145,143,0.3)]'
-                        : 'bg-[#F1F7F7] text-[#7A9090] hover:bg-[#D5E6E5]'}`}>
-                    {s}
-                  </button>
-                ))}
+
+              <div>
+                <label className="text-[10px] font-bold text-[#A8BCBC] uppercase tracking-widest block mb-1.5">Trim — {trimStart}% to {trimEnd}%</label>
+                <input type="range" min={0} max={trimEnd - 5} value={trimStart} onChange={e => setTrimStart(+e.target.value)} className="w-full mb-1.5" />
+                <input type="range" min={trimStart + 5} max={100} value={trimEnd} onChange={e => setTrimEnd(+e.target.value)} className="w-full" />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-[#A8BCBC] uppercase tracking-widest block mb-1.5">
+                  <Volume2 className="inline w-3 h-3 mr-1" />Volume — {volume}%
+                </label>
+                <input type="range" min={0} max={100} value={volume} onChange={e => setVolume(+e.target.value)} className="w-full" />
               </div>
             </div>
 
-            {/* Highlight colors */}
-            <div className="mb-4">
-              <div className="text-xs font-semibold text-[#5D6B6B] mb-2">Highlight Colours</div>
-              <div className="flex items-center space-x-2">
-                {['#C4918F', '#F7CBCA', '#5D6B6B', '#BDD1D6', '#DDD3C8'].map(c => (
-                  <button key={c} className="w-7 h-7 rounded-full border-2 border-white shadow-sm hover:scale-110 transition-transform"
-                    style={{ background: c }} />
-                ))}
-                <button className="w-7 h-7 rounded-full border-2 border-dashed border-[#D5E6E5] flex items-center justify-center text-[#A8BCBC] hover:border-[#BDD1D6] transition-all">
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
+            {selected && (
+              <PrimaryBtn onClick={() => onDownload(selected.videoUrl, title || selected.title)}
+                className="w-full py-3 text-sm mt-2 disabled:bg-slate-200">
+                <Download className="w-4 h-4 mr-2" /> Export Short
+              </PrimaryBtn>
+            )}
           </div>
-
-          <div className="border-t border-[#F1F7F7] pt-4 space-y-4">
-            <div>
-              <label className="text-[10px] font-bold text-[#A8BCBC] uppercase tracking-widest block mb-1.5">Clip Title</label>
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-                className="w-full px-3.5 py-2 bg-[#F7FAFA] border border-[#D5E6E5] rounded-xl text-sm text-[#3A4A4A] outline-none focus:border-[#BDD1D6] transition-all" />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold text-[#A8BCBC] uppercase tracking-widest block mb-1.5">Trim — {trimStart}% to {trimEnd}%</label>
-              <input type="range" min={0} max={trimEnd - 5} value={trimStart} onChange={e => setTrimStart(+e.target.value)} className="w-full mb-1.5" />
-              <input type="range" min={trimStart + 5} max={100} value={trimEnd} onChange={e => setTrimEnd(+e.target.value)} className="w-full" />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold text-[#A8BCBC] uppercase tracking-widest block mb-1.5">
-                <Volume2 className="inline w-3 h-3 mr-1" />Volume — {volume}%
-              </label>
-              <input type="range" min={0} max={100} value={volume} onChange={e => setVolume(+e.target.value)} className="w-full" />
-            </div>
-          </div>
-
-          {selected && (
-            <PrimaryBtn onClick={() => onDownload(selected.videoUrl, title || selected.title)}
-              className="w-full py-3 text-sm mt-2">
-              <Download className="w-4 h-4 mr-2" /> Export Clip
-            </PrimaryBtn>
-          )}
         </Card>
       </div>
     </motion.div>
@@ -794,9 +766,30 @@ export default function App() {
     setLoadingProjects(true);
     try {
       const r = await axios.get('/api/projects');
-      // Flatten projects into clips for the UI (backwards compatible)
-      const allClips = r.data.flatMap(p => p.clips.map(c => ({ ...c, youtubeUrl: p.youtubeUrl, jobId: p.jobId })));
+      const allClips = r.data.flatMap(p => 
+        (p.clips || []).map(c => ({ 
+          ...c, 
+          youtubeUrl: p.youtubeUrl, 
+          jobId: p.jobId,
+          videoTitle: p.videoTitle,
+          videoAuthor: p.videoAuthor,
+          videoThumbnail: p.videoThumbnail,
+          projectStatus: p.status
+        }))
+      );
       setDbProjects(allClips);
+
+      // SESSION RECOVERY: Check for any in-progress jobs to re-attach
+      const activeJob = r.data.find(p => p.status === 'processing' || p.status === 'queued');
+      if (activeJob && !jobIdRef.current) {
+        console.log('[Recovery] Found active job:', activeJob.jobId);
+        setJobId(activeJob.jobId);
+        jobIdRef.current = activeJob.jobId;
+        setProcessing(true);
+        setLogs(activeJob.logs || []);
+        const lastLogLine = (activeJob.logs || []).slice(-1)[0];
+        if (lastLogLine) setProgress(lastLogLine.percent || 0);
+      }
     } catch (err) {
       console.error('Failed to sync projects:', err);
     } finally {
@@ -863,6 +856,13 @@ export default function App() {
       URL.revokeObjectURL(a.href);
     } catch { alert('Download failed.'); }
   }, []);
+
+  const handleDeleteProject = useCallback(async (jid) => {
+    try {
+      await axios.delete(`/api/projects/${jid}`);
+      fetchProjects();
+    } catch (err) { alert('Delete failed: ' + err.message); }
+  }, [fetchProjects]);
 
   const openEditor = useCallback((clip) => { setEditClip(clip); setView('editor'); }, []);
 
@@ -1000,12 +1000,12 @@ export default function App() {
                 logs={logs} results={results} jobId={jobId} progressPercent={progress}
                 error={error} onReset={handleReset} onDownload={handleDownload} />
             )}
-            {view === 'projects' && <ProjectsView key="projects" projects={dbProjects} onDownload={handleDownload} onOpenEditor={openEditor} loading={loadingProjects} onRefresh={fetchProjects} />}
+            {view === 'projects' && <ProjectsView key="projects" projects={dbProjects} onDownload={handleDownload} onOpenEditor={openEditor} onDelete={handleDeleteProject} loading={loadingProjects} onRefresh={fetchProjects} />}
             {view === 'templates' && (
               <TemplatesView key="templates" onSelectTemplate={setTemplate} activeTemplate={template} />
             )}
             {view === 'editor' && (
-              <EditorView key="editor" editClip={editClip} onDownload={handleDownload} />
+              <EditorView key="editor" editClip={editClip} dbProjects={dbProjects} onDownload={handleDownload} />
             )}
             {view === 'settings' && <SettingsView key="settings" />}
             {view === 'support' && <SupportView key="support" />}

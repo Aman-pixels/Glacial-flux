@@ -34,6 +34,17 @@ const outputDir = path.join(__dirname, 'output');
 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
+// Bootstrap Cleanup: Purge orphan temp files from previous runs
+function bootstrapCleanup() {
+  console.log('[Bootstrap] Cleaning up orphan temp files...');
+  const files = fs.readdirSync(tempDir);
+  for (const file of files) {
+    try { fs.unlinkSync(path.join(tempDir, file)); } catch (e) {}
+  }
+  console.log(`[Bootstrap] Cleared ${files.length} temp files.`);
+}
+bootstrapCleanup();
+
 // Serve statically generated clips so the frontend can download/preview them
 app.use('/output', express.static(path.join(__dirname, 'output')));
 
@@ -76,10 +87,37 @@ app.post('/api/process-url', async (req, res) => {
 // API: Get all projects (history)
 app.get('/api/projects', async (req, res) => {
   try {
-    const projects = await Project.find({ status: 'completed' }).sort({ createdAt: -1 });
+    // Return all projects, sorted by newest first
+    const projects = await Project.find().sort({ createdAt: -1 });
     res.json(projects);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
+// API: Get single project by jobId (for re-syncing)
+app.get('/api/projects/:jobId', async (req, res) => {
+  try {
+    const project = await Project.findOne({ jobId: req.params.jobId });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch project' });
+  }
+});
+
+// API: Delete a project
+app.delete('/api/projects/:jobId', async (req, res) => {
+  try {
+    const project = await Project.findOneAndDelete({ jobId: req.params.jobId });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    
+    // Optional: Clean up files in output/ associated with this project
+    // (For now we just delete the DB record)
+    
+    res.json({ success: true, message: 'Project deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete project' });
   }
 });
 
