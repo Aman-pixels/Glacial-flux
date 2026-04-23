@@ -78,6 +78,8 @@ async function runJob(jobId, url, socket, templateId) {
   await Project.findOneAndUpdate({ jobId }, { status: 'processing' });
   await emitLog(socket, jobId, 'init', 0, 'Starting Agent processing phase...');
 
+  const tempFilesToClean = [];
+
   try {
     // 1. Fetch metadata early to populate UI
     await emitLog(socket, jobId, 'metadata', 5, 'Fetching video metadata...');
@@ -96,7 +98,6 @@ async function runJob(jobId, url, socket, templateId) {
 
   let mainVideoPath = null;
   let mainAudioPath = null;
-  const tempFilesToClean = [];
 
     emitLog(socket, jobId, 'download', 10, 'Downloading highest quality video & audio from YouTube...');
     mainVideoPath = await downloadVideo(url, tempDir);

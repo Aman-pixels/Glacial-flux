@@ -7,9 +7,28 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
 
 const model = genAI.getGenerativeModel({
-  model: 'gemma-4-31b-it',
+  model: 'gemini-1.5-flash',
   generationConfig: { responseMimeType: 'application/json' },
 });
+
+function extractJson(text) {
+  try {
+    // Try direct parse first
+    return JSON.parse(text);
+  } catch (e) {
+    // Fallback: extract object between first { and last }
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end !== -1) {
+      try {
+        return JSON.parse(text.substring(start, end + 1));
+      } catch (e2) {
+        throw new Error(`Failed to parse extracted JSON: ${e2.message}`);
+      }
+    }
+    throw new Error('No JSON object found in response');
+  }
+}
 
 async function uploadAudio(filePath) {
   console.log(`[Gemini] Uploading: ${path.basename(filePath)}`);
@@ -39,7 +58,7 @@ Return ONLY this JSON structure, no markdown:
       { fileData: { fileUri: file.uri, mimeType: 'audio/mpeg' } },
       { text: prompt },
     ]);
-    const parsed = JSON.parse(result.response.text());
+    const parsed = extractJson(result.response.text());
     if (!parsed.segments) throw new Error('Missing segments');
     return parsed;
   } finally {
@@ -60,15 +79,14 @@ Return ONLY this JSON, no markdown:
   ], { model: 'gemma-4-31b-it' });
 
   const text = result.response.text();
-  const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-  const parsed = JSON.parse(cleanJson);
+  const parsed = extractJson(text);
   return parsed.clips || [];
 }
 
 async function generateClipSubtitles(audioFilePath) {
   const file = await uploadAudio(audioFilePath);
   try {
-    const srtModel = genAI.getGenerativeModel({ model: 'gemma-4-31b-it' });
+    const srtModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await srtModel.generateContent([
       { fileData: { fileUri: file.uri, mimeType: 'audio/mpeg' } },
       { text: `Transcribe this audio as a valid SRT subtitle file. Max 6 words per line.

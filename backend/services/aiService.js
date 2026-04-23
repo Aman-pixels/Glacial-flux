@@ -49,12 +49,17 @@ async function withFailover(fnName, ...args) {
       console.log(`[AI Router] ${fnName} → success with ${provider.name}`);
       return result;
     } catch (err) {
-      if (isRateLimited(err)) {
-        console.warn(`[AI Router] ${provider.name} rate limited for ${fnName}. Switching to next provider...`);
+      const isRetryable = isRateLimited(err) || 
+                          err instanceof SyntaxError || 
+                          err.message.includes('JSON') ||
+                          err.message.includes('extracted JSON');
+
+      if (isRetryable) {
+        console.warn(`[AI Router] ${provider.name} failed with retryable error for ${fnName}: ${err.message}. Switching to next provider...`);
         lastError = err;
         continue; // try next provider
       }
-      // Non-rate-limit error — re-throw immediately
+      // Non-retryable error — re-throw immediately
       throw err;
     }
   }
