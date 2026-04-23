@@ -76,7 +76,7 @@ async function detectViralMoments(transcriptionData) {
 Return ONLY this JSON, no markdown:
 {"clips":[{"title":"catchy title","description":"why it will go viral","start_time":0.0,"end_time":30.0,"virality_score":95}]}` },
     { text: `Transcript:\n${promptData}` },
-  ], { model: 'gemma-4-31b-it' });
+  ]);
 
   const text = result.response.text();
   const parsed = extractJson(text);
@@ -98,4 +98,4 @@ Return ONLY raw SRT content, no markdown, no explanation.` },
   }
 }
 
-module.exports = { name: 'Gemma 4', transcribeAudio, detectViralMoments, generateClipSubtitles };
+module.exports = { name: 'Gemini', transcribeAudio, detectViralMoments, generateClipSubtitles };

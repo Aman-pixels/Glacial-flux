@@ -4,7 +4,7 @@ const path = require('path');
 const Project = require('../models/Project');
 const { downloadVideo, extractAudio, getVideoMetadata } = require('./videoService');
 const { transcribeAudio, detectViralMoments, generateClipSubtitles } = require('./aiService');
-const { extractAudioSegment, processVerticalClip, generateThumbnail } = require('../utils/ffmpeg');
+const { extractAudioSegment, processVerticalClipWithSubtitles, processVerticalClip, generateThumbnail } = require('../utils/ffmpeg');
 
 // ─── CONCURRENCY CONTROL ─────────────────────────────────────────────────────
 const MAX_CONCURRENT_JOBS = 2; // Limit FFmpeg/AI load
@@ -141,12 +141,12 @@ async function runJob(jobId, url, socket, templateId) {
       emitLog(socket, jobId, 'render', Math.floor(basePercent), `Clip ${i+1}/${clipsToProcess}: Extracting slice audio...`);
       await extractAudioSegment(mainVideoPath, start, duration, clipAudioPath);
       
-      // emitLog(socket, jobId, 'render', Math.floor(basePercent + 2), `Clip ${i+1}/${clipsToProcess}: Generating perfect localized subtitle track...`);
-      // const srtContent = await generateClipSubtitles(clipAudioPath);
-      // fs.writeFileSync(srtPath, srtContent);
+      emitLog(socket, jobId, 'render', Math.floor(basePercent + 2), `Clip ${i+1}/${clipsToProcess}: Generating perfect localized subtitle track...`);
+      const srtContent = await generateClipSubtitles(clipAudioPath);
+      fs.writeFileSync(srtPath, srtContent);
       
       emitLog(socket, jobId, 'render', Math.floor(basePercent + 5), `Clip ${i+1}/${clipsToProcess}: Rendering vertical layout via FFmpeg...`);
-      await processVerticalClip(mainVideoPath, start, duration, outputVideoPath);
+      await processVerticalClipWithSubtitles(mainVideoPath, start, duration, srtPath, outputVideoPath, templateId);
       
       emitLog(socket, jobId, 'render', Math.floor(basePercent + 12), `Clip ${i+1}/${clipsToProcess}: Generating engaging thumbnail...`);
       await generateThumbnail(outputVideoPath, thumbnailPath);
