@@ -90,7 +90,7 @@ async function extractAudio(videoPath, outputDir) {
     ffmpeg(videoPath)
       .noVideo()
       .audioCodec('libmp3lame')
-      .audioQuality(5) // Slightly lower quality to stay under Gemini's 20MB file limit
+      .audioQuality(2) // Higher quality VBR mp3
       .save(audioPath)
       .on('end', () => resolve(audioPath))
       .on('error', (err) => {

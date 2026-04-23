@@ -157,7 +157,7 @@ const ClipCard = ({ clip, idx, onDownload, onDelete, onOpen }) => {
           {clip.description}
         </p>
         <div className="mt-auto flex items-center justify-between border-t border-[#F1F7F7] pt-3">
-          <Pill color="teal">Subtitled</Pill>
+          <div></div>
           <div className="flex items-center space-x-1.5">
             {onOpen && (
               <button onClick={() => onOpen(clip)} title="Open in Editor"

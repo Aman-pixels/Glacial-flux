@@ -50,6 +50,7 @@ async function withFailover(fnName, ...args) {
       return result;
     } catch (err) {
       const isRetryable = isRateLimited(err) || 
+                          err?.status === 404 ||
                           err instanceof SyntaxError || 
                           err.message.includes('JSON') ||
                           err.message.includes('extracted JSON');

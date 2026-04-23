@@ -129,11 +129,10 @@ async function runJob(jobId, url, socket, templateId) {
       const clipId = uuidv4();
       
       const clipAudioPath = path.join(tempDir, `clip_audio_${clipId}.mp3`);
-      const srtPath = path.join(tempDir, `sub_${clipId}.srt`);
       const outputVideoPath = path.join(outputDir, `short_${clipId}.mp4`);
       const thumbnailPath = path.join(outputDir, `thumb_${clipId}.jpg`);
       
-      tempFilesToClean.push(clipAudioPath, srtPath);
+      tempFilesToClean.push(clipAudioPath);
 
       // We give the Rendering process the remaining 40% (60 -> 100)
       const basePercent = 60 + (i * (40 / clipsToProcess));
@@ -141,12 +140,9 @@ async function runJob(jobId, url, socket, templateId) {
       emitLog(socket, jobId, 'render', Math.floor(basePercent), `Clip ${i+1}/${clipsToProcess}: Extracting slice audio...`);
       await extractAudioSegment(mainVideoPath, start, duration, clipAudioPath);
       
-      emitLog(socket, jobId, 'render', Math.floor(basePercent + 2), `Clip ${i+1}/${clipsToProcess}: Generating perfect localized subtitle track...`);
-      const srtContent = await generateClipSubtitles(clipAudioPath);
-      fs.writeFileSync(srtPath, srtContent);
-      
+      // Captions are disabled per user request
       emitLog(socket, jobId, 'render', Math.floor(basePercent + 5), `Clip ${i+1}/${clipsToProcess}: Rendering vertical layout via FFmpeg...`);
-      await processVerticalClipWithSubtitles(mainVideoPath, start, duration, srtPath, outputVideoPath, templateId);
+      await processVerticalClip(mainVideoPath, start, duration, outputVideoPath);
       
       emitLog(socket, jobId, 'render', Math.floor(basePercent + 12), `Clip ${i+1}/${clipsToProcess}: Generating engaging thumbnail...`);
       await generateThumbnail(outputVideoPath, thumbnailPath);

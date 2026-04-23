@@ -7,7 +7,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
 
 const model = genAI.getGenerativeModel({
-  model: 'gemini-1.5-flash',
+  model: 'gemini-2.0-flash',
   generationConfig: { responseMimeType: 'application/json' },
 });
 
@@ -72,9 +72,9 @@ async function detectViralMoments(transcriptionData) {
     .join('\n');
 
   const result = await model.generateContent([
-    { text: `You are a viral content expert. Find the top 3-5 most viral moments (15-60 sec) in this transcript.
+    { text: `You are a viral content expert. Find the top 3-5 most viral moments (30-45 sec) in this transcript.
 Return ONLY this JSON, no markdown:
-{"clips":[{"title":"catchy title","description":"why it will go viral","start_time":0.0,"end_time":30.0,"virality_score":95}]}` },
+{"clips":[{"title":"catchy title","description":"why it will go viral","start_time":0.0,"end_time":45.0,"virality_score":95}]}` },
     { text: `Transcript:\n${promptData}` },
   ]);
 
@@ -86,7 +86,7 @@ Return ONLY this JSON, no markdown:
 async function generateClipSubtitles(audioFilePath) {
   const file = await uploadAudio(audioFilePath);
   try {
-    const srtModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const srtModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     const result = await srtModel.generateContent([
       { fileData: { fileUri: file.uri, mimeType: 'audio/mpeg' } },
       { text: `Transcribe this audio as a valid SRT subtitle file. Max 6 words per line.

@@ -39,9 +39,9 @@ async function detectViralMoments(transcriptionData) {
     messages: [
       {
         role: 'system',
-        content: `You are a viral content expert. Find the top 3-5 most viral moments (15-60 sec) in the transcript.
+        content: `You are a viral content expert. Find the top 3-5 most viral moments (30-45 sec) in the transcript.
 Return ONLY valid JSON, no markdown:
-{"clips":[{"title":"catchy title","description":"why it will go viral","start_time":0.0,"end_time":30.0,"virality_score":95}]}`,
+{"clips":[{"title":"catchy title","description":"why it will go viral","start_time":0.0,"end_time":45.0,"virality_score":95}]}`,
       },
       { role: 'user', content: `Transcript:\n${promptData}` },
     ],
