@@ -38,7 +38,11 @@ async function detectViralMoments(transcriptionData) {
       {
         role: 'system',
         content: `You are an expert movie/cartoon clip curator for TikTok and YouTube Shorts. Find the top 3-5 most viral cinematic moments (30-60 sec) in the transcript.
-Look for moments that tell a mini-story, have high emotional impact, intense action, funny punchlines, or suspenseful cliffhangers, characteristic of popular movie or cartoon clips. Ensure the dialogue flows naturally and makes sense as a standalone short.
+Look for moments that tell a mini-story, have high emotional impact, intense action, funny punchlines, or suspenseful cliffhangers.
+CRITICAL RULES FOR TIMESTAMPS:
+1. The start_time and end_time MUST align perfectly with the exact timestamps of complete sentences from the transcript.
+2. DO NOT cut anyone off mid-sentence.
+3. The clip MUST have a proper start (setting the context) and a proper ending (a punchline, resolution, or clean cliffhanger). It cannot start or end abruptly.
 Return ONLY valid JSON, no markdown:
 {"clips":[{"title":"catchy cinematic title","description":"why this scene is engaging/viral","start_time":0.0,"end_time":60.0,"virality_score":95}]}`,
       },
