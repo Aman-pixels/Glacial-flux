@@ -128,7 +128,7 @@ const ClipCard = ({ clip, idx, onDownload, onDelete, onOpen }) => {
         </video>
 
         {/* Play overlay */}
-        <button onClick={togglePlay} className="absolute inset-0 flex items-center justify-center">
+        <button onClick={togglePlay} aria-label="Play or Pause Video" className="absolute inset-0 flex items-center justify-center">
           <div className={`w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg transition-all duration-200
             ${playing ? 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100' : 'opacity-100 scale-100'}`}>
             {playing ? <Pause className="w-5 h-5 text-[#5D6B6B]" /> : <Play className="w-5 h-5 text-[#5D6B6B] ml-1" />}
@@ -160,18 +160,18 @@ const ClipCard = ({ clip, idx, onDownload, onDelete, onOpen }) => {
           <div></div>
           <div className="flex items-center space-x-1.5">
             {onOpen && (
-              <button onClick={() => onOpen(clip)} title="Open in Editor"
+              <button onClick={() => onOpen(clip)} title="Open in Editor" aria-label="Open in Editor"
                 className="w-8 h-8 rounded-full border border-[#D5E6E5] flex items-center justify-center text-[#A8BCBC] hover:text-[#5D6B6B] hover:border-[#BDD1D6] hover:bg-[#F7FAFA] transition-all">
                 <SquarePen className="w-3.5 h-3.5" />
               </button>
             )}
             {onDelete && (
-              <button onClick={() => onDelete(clip)} title="Delete"
+              <button onClick={() => onDelete(clip)} title="Delete Project" aria-label="Delete Project"
                 className="w-8 h-8 rounded-full border border-[#D5E6E5] flex items-center justify-center text-[#A8BCBC] hover:text-red-400 hover:border-red-200 hover:bg-red-50 transition-all">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
-            <button onClick={() => onDownload(clip.videoUrl, clip.title)} title="Download"
+            <button onClick={() => onDownload(clip.videoUrl, clip.title)} title="Download Clip" aria-label="Download Clip"
               className="w-8 h-8 rounded-full bg-[#C4918F] border border-[#C4918F] flex items-center justify-center text-white hover:bg-[#b07e7c] transition-all shadow-[0_2px_8px_rgba(196,145,143,0.3)]">
               <Download className="w-3.5 h-3.5" />
             </button>
@@ -498,7 +498,18 @@ const EditorView = ({ editClip, dbProjects, onDownload }) => {
 
   useEffect(() => { if (editClip) { setSelected(editClip); setTitle(editClip.title || ''); } }, [editClip]);
   useEffect(() => { if (selected) setTitle(selected.title || ''); }, [selected]);
-  useEffect(() => { if (videoRef.current) videoRef.current.volume = volume / 100; }, [volume]);
+  useEffect(() => { if (videoRef.current) videoRef.current.volume = volume / 100; }, [volume, selected]);
+
+  const handleTimeUpdate = () => {
+    if (!videoRef.current || !videoRef.current.duration) return;
+    const dur = videoRef.current.duration;
+    const curr = videoRef.current.currentTime;
+    const startSec = (trimStart / 100) * dur;
+    const endSec = (trimEnd / 100) * dur;
+    if (curr < startSec || curr > endSec) {
+      videoRef.current.currentTime = startSec;
+    }
+  };
 
   const captionStyles = ['POP OUT', 'MINIMAL', 'OUTLINE', 'BOXED'];
 
@@ -551,7 +562,8 @@ const EditorView = ({ editClip, dbProjects, onDownload }) => {
           <div className="w-full max-w-[260px] aspect-[9/16] bg-[#1a2020] rounded-3xl overflow-hidden border border-[#D5E6E5]/40 shadow-[0_20px_60px_rgba(93,107,107,0.15)] relative">
             {selected ? (
               <video ref={videoRef} src={selected.videoUrl} poster={selected.thumbnailUrl}
-                controls className="w-full h-full object-contain" />
+                controls className="w-full h-full object-contain"
+                onTimeUpdate={handleTimeUpdate} />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-[#A8BCBC]">
                 <Film className="w-12 h-12 mb-2" />
@@ -614,17 +626,24 @@ const EditorView = ({ editClip, dbProjects, onDownload }) => {
 
 // ─── SETTINGS VIEW ────────────────────────────────────────────────────────────
 const SettingsView = () => {
-  const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
-  const [quality, setQuality] = useState('high');
-  const [name, setName] = useState('Admin');
-  const [email, setEmail] = useState('admin@glacialflux.ai');
+  const [notifications, setNotifications] = useState(() => JSON.parse(localStorage.getItem('gf_notif') ?? 'true'));
+  const [darkMode, setDarkMode] = useState(() => JSON.parse(localStorage.getItem('gf_dark') ?? 'false'));
+  const [quality, setQuality] = useState(() => localStorage.getItem('gf_qual') || 'high');
+  const [name, setName] = useState(() => localStorage.getItem('gf_name') || 'Admin');
+  const [email, setEmail] = useState(() => localStorage.getItem('gf_email') || 'admin@glacialflux.ai');
   const [saved, setSaved] = useState(false);
 
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const save = () => { 
+    localStorage.setItem('gf_notif', JSON.stringify(notifications));
+    localStorage.setItem('gf_dark', JSON.stringify(darkMode));
+    localStorage.setItem('gf_qual', quality);
+    localStorage.setItem('gf_name', name);
+    localStorage.setItem('gf_email', email);
+    setSaved(true); setTimeout(() => setSaved(false), 2000); 
+  };
 
   const Toggle = ({ val, set }) => (
-    <button onClick={() => set(!val)}
+    <button onClick={() => set(!val)} aria-label="Toggle setting" aria-checked={val} role="switch"
       className={`relative w-11 h-6 rounded-full transition-all duration-200 ${val ? 'bg-[#C4918F]' : 'bg-[#D5E6E5]'}`}>
       <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all duration-200 ${val ? 'left-6' : 'left-1'}`} />
     </button>
@@ -891,8 +910,8 @@ export default function App() {
         <div className="p-5">
           {/* Logo */}
           <div className="flex items-center space-x-3 mb-8">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ background: T.roseDeep }}>
-              <Bot className="w-4.5 h-4.5 text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm overflow-hidden bg-white border" style={{ borderColor: `${T.teal}80` }}>
+              <img src="/logo.png" alt="Glacial Flux Logo" className="w-full h-full object-cover" />
             </div>
             <div>
               <h1 className="font-bold text-[15px] leading-tight" style={{ color: T.tealDeep }}>Glacial Flux</h1>
@@ -955,8 +974,8 @@ export default function App() {
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center space-x-2">
-            <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: T.roseDeep }}>
-              <Bot className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm overflow-hidden bg-white border" style={{ borderColor: `${T.teal}80` }}>
+              <img src="/logo.png" alt="Glacial Flux Logo" className="w-full h-full object-cover" />
             </div>
             <span className="font-bold text-[15px]" style={{ color: T.tealDeep }}>Glacial Flux</span>
           </div>
