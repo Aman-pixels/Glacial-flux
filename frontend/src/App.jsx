@@ -12,6 +12,14 @@ import { io } from 'socket.io-client';
 
 const socket = io();
 
+// ─── OPENCLAW ANIMATION ──────────────────────────────────────────────────────
+const ClawIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+    <path d="M5 2l14 20M19 2L5 22" strokeOpacity="0.2"/>
+  </svg>
+);
+
 // ─── PERSISTENCE (Disabled LocalStorage, now using MongoDB) ──────────────────
 // const PROJECTS_KEY = 'glacialflux_projects';
 // const loadProjects = () => { try { return JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]'); } catch { return []; } };
@@ -779,6 +787,29 @@ export default function App() {
   const [editClip, setEditClip] = useState(null);
   const [dbProjects, setDbProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [openclawActive, setOpenclawActive] = useState(false);
+
+  // Sync OpenClaw status
+  const fetchOpenclawStatus = useCallback(async () => {
+    try {
+      const r = await axios.get('/api/openclaw/status');
+      setOpenclawActive(r.data.isActive);
+    } catch (err) { console.error('Failed to get OpenClaw status:', err); }
+  }, []);
+
+  const toggleOpenclaw = async () => {
+    try {
+      const r = await axios.post('/api/openclaw/toggle');
+      setOpenclawActive(r.data.isActive);
+    } catch (err) { alert('Failed to toggle OpenClaw Agent'); }
+  };
+
+  const forceOpenclawHunt = async () => {
+    try {
+      await axios.post('/api/openclaw/force');
+      alert('OpenClaw Agent has started hunting for viral content!');
+    } catch (err) { alert('Failed to trigger agent hunt'); }
+  };
 
   // Sync projects from DB
   const fetchProjects = useCallback(async () => {
@@ -816,7 +847,7 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => { fetchProjects(); }, [fetchProjects]);
+  useEffect(() => { fetchProjects(); fetchOpenclawStatus(); }, [fetchProjects, fetchOpenclawStatus]);
 
   // Socket
   useEffect(() => {
@@ -950,11 +981,23 @@ export default function App() {
             </div>
             <p className="text-[10px]" style={{ color: T.muted }}>Gemini · Groq · OpenAI</p>
           </div>
-          {/* Upgrade */}
-          <button className="w-full mt-4 py-3 rounded-2xl font-semibold text-sm transition-all hover:opacity-90"
-            style={{ background: T.roseDeep, color: 'white', boxShadow: '0 4px 14px rgba(196,145,143,0.3)' }}>
-            ⚡ Upgrade to Pro
-          </button>
+          {/* OpenClaw Agent */}
+          <div className="mt-4 rounded-2xl p-3.5 border transition-colors" style={{ background: openclawActive ? `${T.rose}30` : '#FFFFFF60', border: `1px solid ${openclawActive ? T.roseDeep : `${T.teal}80`}` }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider flex items-center" style={{ color: openclawActive ? T.roseDeep : T.tealDeep }}>
+                <Bot className="w-3.5 h-3.5 mr-1" /> OpenClaw Agent
+              </span>
+              <button onClick={toggleOpenclaw} className={`relative w-8 h-4 rounded-full transition-all ${openclawActive ? 'bg-[#C4918F]' : 'bg-[#D5E6E5]'}`}>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${openclawActive ? 'left-4.5' : 'left-0.5'}`} />
+              </button>
+            </div>
+            <p className="text-[9px] mb-2" style={{ color: T.muted }}>{openclawActive ? 'Autonomous hunting active. Agent will automatically queue trending videos.' : 'Agent is sleeping. Enable to automate your content pipeline.'}</p>
+            {openclawActive && (
+              <button onClick={forceOpenclawHunt} className="w-full py-1.5 text-[10px] font-semibold rounded-lg bg-white border shadow-sm transition-all hover:bg-slate-50" style={{ color: T.roseDeep, borderColor: T.roseDeep }}>
+                Force Hunt Now
+              </button>
+            )}
+          </div>
         </div>
       </aside>
 

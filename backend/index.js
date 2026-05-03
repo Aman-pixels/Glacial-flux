@@ -10,6 +10,7 @@ const { Server } = require("socket.io");
 const connectDB = require('./config/db');
 const Project = require('./models/Project');
 const { createJob } = require('./services/jobQueue');
+const openclawAgent = require('./services/openclawAgent');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -119,6 +120,28 @@ app.delete('/api/projects/:jobId', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete project' });
   }
+});
+
+// API: Get OpenClaw Agent Status
+app.get('/api/openclaw/status', (req, res) => {
+  res.json(openclawAgent.getStatus());
+});
+
+// API: Toggle OpenClaw Agent
+app.post('/api/openclaw/toggle', (req, res) => {
+  const status = openclawAgent.getStatus();
+  if (status.isActive) {
+    openclawAgent.stop();
+  } else {
+    openclawAgent.start();
+  }
+  res.json(openclawAgent.getStatus());
+});
+
+// API: Force OpenClaw Agent to hunt now
+app.post('/api/openclaw/force', (req, res) => {
+  openclawAgent.forceRun();
+  res.json({ success: true, message: 'Agent hunt triggered' });
 });
 
 server.listen(PORT, () => {
