@@ -113,8 +113,23 @@ app.delete('/api/projects/:jobId', async (req, res) => {
     const project = await Project.findOneAndDelete({ jobId: req.params.jobId });
     if (!project) return res.status(404).json({ error: 'Project not found' });
     
-    // Optional: Clean up files in output/ associated with this project
-    // (For now we just delete the DB record)
+    // Clean up physical files in output/ associated with this project
+    if (project.clips && project.clips.length > 0) {
+      for (const clip of project.clips) {
+        if (clip.videoUrl) {
+          const videoPath = path.join(__dirname, 'output', path.basename(clip.videoUrl));
+          if (fs.existsSync(videoPath)) {
+            try { fs.unlinkSync(videoPath); } catch (e) { console.error('Failed to delete video file:', e); }
+          }
+        }
+        if (clip.thumbnailUrl) {
+          const thumbPath = path.join(__dirname, 'output', path.basename(clip.thumbnailUrl));
+          if (fs.existsSync(thumbPath)) {
+            try { fs.unlinkSync(thumbPath); } catch (e) { console.error('Failed to delete thumbnail file:', e); }
+          }
+        }
+      }
+    }
     
     res.json({ success: true, message: 'Project deleted successfully' });
   } catch (error) {

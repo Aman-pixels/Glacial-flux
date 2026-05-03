@@ -521,7 +521,7 @@ const EditorView = ({ editClip, dbProjects, onDownload }) => {
 
   const captionStyles = ['POP OUT', 'MINIMAL', 'OUTLINE', 'BOXED'];
 
-  if (!selected && projects.length === 0) return (
+  if (!selected && dbProjects.length === 0) return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       className="w-full flex flex-col items-center justify-center py-28">
       <div className="w-16 h-16 rounded-3xl flex items-center justify-center mb-4" style={{ background: T.sage }}>
